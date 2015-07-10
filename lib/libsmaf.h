@@ -31,9 +31,8 @@
 int smaf_open();
 void smaf_close();
 
-int smaf_create_buffer(unsigned int length, unsigned int flags, int *fd);
+int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int *fd);
 int smaf_set_secure(int fd, int secure);
 int smaf_get_secure(int fd);
-int smaf_select_allocator(int fd, char *name);
 
 #endif

@@ -24,133 +24,94 @@
 
 #define LENGTH 1024*16
 
-static void test_select_invalid(void)
+static void test_create_named_invalid(void)
 {
 	int ret;
 	int fd;
-	ret = smaf_open();
 
-	if (ret) {
-		printf("test_select_invalid smaf_open() failed %d\n", ret);
-		return;
-	}
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, "deadbeef", &fd);
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, &fd);
-
-	if (ret || (fd == -1)) {
-		printf("test_select_invalid smaf_create_buffer() failed %d\n", ret);
-		smaf_close();
-		return;
-	}
-
-	ret = smaf_select_allocator(fd, "deadbeef");
 	if (!ret) {
-		printf("test_select_invalid smaf_select_allocator failed %d\n", ret);
-		goto end;
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		return;
 	}
 
-	printf("test_select_invalid successed\n");
-end:
-	close(fd);
-	smaf_close();
+	printf("%s successed\n", __func__);
 }
 
-static void test_select(void)
+static void test_create_named(void)
 {
 	int ret;
 	int fd;
-	ret = smaf_open();
 
-	if (ret) {
-		printf("test_select smaf_open() failed %d\n", ret);
-		return;
-	}
-
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, &fd);
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, "smaf-cma", &fd);
 
 	if (ret || (fd == -1)) {
-		printf("test_select smaf_create_buffer() failed %d\n", ret);
-		smaf_close();
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
-	ret = smaf_select_allocator(fd, "smaf-cma");
-	if (ret) {
-		printf("test_select smaf_select_allocator failed %d\n", ret);
-		goto end;
-	}
+	printf("%s successed\n", __func__);
 
-	printf("test_select successed\n");
-end:
 	close(fd);
-	smaf_close();
 }
 
 static void test_secure(void)
 {
 	int ret;
 	int fd;
-	ret = smaf_open();
 
-	if (ret) {
-		printf("test_secure smaf_open() failed %d\n", ret);
-		return;
-	}
-
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, &fd);
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
-		printf("test_secure smaf_create_buffer() failed %d\n", ret);
-		smaf_close();
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
 	ret = smaf_set_secure(fd, 1);
 	if (ret) {
-		printf("test_secure smaf_set_secure() failed %d\n", ret);
+		printf("%s smaf_set_secure() failed %d\n", __func__, ret);
 		goto end;
 	}
 
 	ret = smaf_get_secure(fd);
 	if (!ret) {
-		printf("test_secure smaf_get_secure() failed %d\n", ret);
+		printf("%s smaf_get_secure() failed %d\n", __func__, ret);
 		goto end;
 	}
 
-	printf("test_secure successed\n");
+	printf("%s successed\n", __func__);
 end:
 	close(fd);
-	smaf_close();
 }
 
-static void test_create(void)
+static void test_create_unnamed(void)
 {
 	int ret;
 	int fd;
-	ret = smaf_open();
 
-	if (ret) {
-		printf("test_create smaf_open() failed %d\n", ret);
-		return;
-	}
-
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, &fd);
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
-		printf("test_create smaf_create_buffer() failed %d\n", ret);
-		smaf_close();
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
 	close(fd);
-	smaf_close();
-	printf("test_create successed\n");
+	printf("%s successed\n", __func__);
 }
 
 void main (void)
 {
-	test_create();
+	if (smaf_open()) {
+		printf("Can't open /dev/smaf\n");
+		return;
+	}
+
+	test_create_unnamed();
+	test_create_named();
+	test_create_named_invalid();
 	test_secure();
-	test_select();
-	test_select_invalid();
+
+	smaf_close();
 }

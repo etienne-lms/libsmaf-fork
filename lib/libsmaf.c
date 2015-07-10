@@ -41,30 +41,31 @@ static int smaf_fd = -1;
 int smaf_open(void)
 {
 	if (open_count)
-		goto add;
+		return 0;
 
 	smaf_fd = open(SMAF_DEV, O_RDWR, 0);
 
 	if (smaf_fd == -1)
 		return -1;
 
-add:
 	open_count++;
 	return 0;
 }
 
 void smaf_close(void)
 {
-	open_count--;
-
 	if (open_count)
-		return;
+		open_count--;
 
-	close(smaf_fd);
-	smaf_fd = -1;
+	if (!open_count) {
+		if (smaf_fd != -1)
+			close(smaf_fd);
+
+		smaf_fd = -1;
+	}
 }
 
-int smaf_create_buffer(unsigned int length, unsigned int flags, int *fd)
+int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int *fd)
 {
 	struct smaf_create_data create;
 	int ret;
@@ -72,10 +73,12 @@ int smaf_create_buffer(unsigned int length, unsigned int flags, int *fd)
 	if (smaf_fd == -1)
 		return -1;
 
-	memset (&create, 0, sizeof (create));
+	memset(&create, 0, sizeof (create));
 
 	create.length = length;
 	create.flags = flags;
+	if (name)
+		strncpy(&create.name, name, sizeof(create.name));
 
 	ret = ioctl(smaf_fd, SMAF_IOC_CREATE, &create);
 	if (ret) {
@@ -95,7 +98,7 @@ int smaf_set_secure(int fd, int secure)
 	if (smaf_fd == -1)
 		return -1;
 
-	memset (&flag, 0, sizeof(flag));
+	memset(&flag, 0, sizeof(flag));
 	flag.fd = fd;
 	flag.secure = secure;
 
@@ -112,27 +115,10 @@ int smaf_get_secure(int fd)
 	if (smaf_fd == -1)
 		return 0;
 
-	memset (&flag, 0, sizeof(flag));
+	memset(&flag, 0, sizeof(flag));
 	flag.fd = fd;
 
 	ret = ioctl(smaf_fd, SMAF_IOC_GET_SECURE_FLAG, &flag);
 
 	return flag.secure;
-}
-
-int smaf_select_allocator(int fd, char *name)
-{
-	struct smaf_select_by_name select;
-	int ret;
-
-	if (smaf_fd == -1)
-		return -1;
-
-	memset(&select, 0, sizeof(select));
-	select.fd = fd;
-	strncpy(select.name, name, sizeof(select.name));
-
-	ret = ioctl(smaf_fd, SMAF_IOC_SELECT_BY_NAME, &select);
-
-	return ret;
 }
