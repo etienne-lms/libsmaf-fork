@@ -41,28 +41,28 @@ static int smaf_fd = -1;
 int smaf_open(void)
 {
 	if (open_count)
-		return 0;
+		goto add;
 
 	smaf_fd = open(SMAF_DEV, O_RDWR, 0);
 
 	if (smaf_fd == -1)
 		return -1;
 
+add:
 	open_count++;
 	return 0;
 }
 
 void smaf_close(void)
 {
-	if (open_count)
-		open_count--;
+	if (open_count) {
+		if (!--open_count) {
+			if (smaf_fd != -1)
+				close(smaf_fd);
 
-	if (!open_count) {
-		if (smaf_fd != -1)
-			close(smaf_fd);
-
-		smaf_fd = -1;
-	}
+			smaf_fd = -1;
+		}
+        }
 }
 
 int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int *fd)
