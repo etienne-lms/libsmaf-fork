@@ -21,6 +21,7 @@
 
 #include <../lib/libsmaf.h>
 #include <stdio.h>
+#include <sys/mman.h>
 
 #define LENGTH 1024*16
 
@@ -85,6 +86,46 @@ end:
 	close(fd);
 }
 
+static void test_create_non_page_aligned_mmap(void)
+{
+	int ret;
+	int fd;
+	void *data;
+
+	ret = smaf_create_buffer(LENGTH+1, O_CLOEXEC | O_RDWR, NULL, &fd);
+
+	if (ret || (fd == -1)) {
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		return;
+	}
+
+	data = mmap(0, LENGTH+1, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+	munmap(data, LENGTH+1);
+	close(fd);
+
+	if (data == MAP_FAILED)
+		printf("%s failed\n", __func__);
+	else
+		printf("%s successed\n", __func__);
+}
+
+static void test_create_non_page_aligned(void)
+{
+	int ret;
+	int fd;
+
+	ret = smaf_create_buffer(LENGTH+1, O_CLOEXEC | O_RDWR, NULL, &fd);
+
+	if (ret || (fd == -1)) {
+		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		return;
+	}
+
+	close(fd);
+	printf("%s successed\n", __func__);
+}
+
 static void test_create_unnamed(void)
 {
 	int ret;
@@ -111,6 +152,8 @@ void main (void)
 	test_create_unnamed();
 	test_create_named();
 	test_create_named_invalid();
+	test_create_non_page_aligned();
+	test_create_non_page_aligned_mmap();
 	test_secure();
 
 	smaf_close();
