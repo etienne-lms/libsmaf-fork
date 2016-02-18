@@ -7,4 +7,4 @@ Name: libsmaf
 Description: smaf access library
 Version: @PACKAGE_VERSION@
 Libs: -L${libdir} -lsmaf
-Cflags: -I${includedir}/libsmaf.h
+Cflags: -I${includedir}
