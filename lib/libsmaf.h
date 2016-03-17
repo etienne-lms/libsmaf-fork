@@ -28,11 +28,19 @@
 /* For close() */
 #include <unistd.h>
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 int smaf_open();
 void smaf_close();
 
 int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int *fd);
 int smaf_set_secure(int fd, int secure);
 int smaf_get_secure(int fd);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif
