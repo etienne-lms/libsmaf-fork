@@ -39,6 +39,14 @@ int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int 
 int smaf_set_secure(int fd, int secure);
 int smaf_get_secure(int fd);
 
+/* get number of registered allocators */
+int smaf_allocator_count();
+
+/* return alloctor name per index
+ * it is up to caller to release returned value
+ */
+char *smaf_get_allocator_name(int index);
+
 #if defined(__cplusplus)
 }
 #endif

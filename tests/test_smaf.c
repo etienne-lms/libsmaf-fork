@@ -21,9 +21,27 @@
 
 #include <../lib/libsmaf.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 
 #define LENGTH 1024*16
+
+static void test_create_named(char *name)
+{
+	int ret;
+	int fd;
+
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, name, &fd);
+
+	if (ret || (fd == -1)) {
+		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
+		return;
+	}
+
+	printf("%s: smaf_create_buffer() for allocator %s successed\n", __func__, name);
+
+	close(fd);
+}
 
 static void test_create_named_invalid(void)
 {
@@ -33,29 +51,58 @@ static void test_create_named_invalid(void)
 	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, "deadbeef", &fd);
 
 	if (!ret) {
-		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
-	printf("%s successed\n", __func__);
+	printf("%s: successed\n", __func__);
 }
 
-static void test_create_named(void)
+static void test_iter_over_allocators(void)
 {
-	int ret;
-	int fd;
+	int i;
+	int count = smaf_allocator_count();
+	char *name;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, "smaf-cma", &fd);
-
-	if (ret || (fd == -1)) {
-		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+	if (count <= 0) {
+		printf("%s: smaf_allocator_count() failed %d\n", __func__, count);
 		return;
 	}
 
-	printf("%s successed\n", __func__);
+	printf("%s: smaf_allocator_count() found %d allocators\n", __func__, count);
+	for (i = 0; i < count; i++) {
+		name = smaf_get_allocator_name(i);
+		if (!name) {
+			printf("%s: smaf_get_allocator_name() failed %d\n", __func__, i);
+			return;
+		}
 
-	close(fd);
+		test_create_named(name);
+		free(name);
+	}
 }
+
+static void test_invalid_allocator_index(void)
+{
+	int count = smaf_allocator_count();
+	char *name;
+
+	if (count <= 0) {
+		printf("%s: smaf_allocator_count() failed %d\n", __func__, count);
+		return;
+	}
+
+	printf("%s: smaf_allocator_count() found %d allocators\n", __func__, count);
+	name = smaf_get_allocator_name(count);
+	if (name) {
+		printf("%s: smaf_get_allocator_name() failed %s\n", __func__, name);
+		free(name);
+		return;
+	}
+
+	printf("%s: successed\n", __func__);
+}
+
 
 static void test_secure(void)
 {
@@ -65,23 +112,23 @@ static void test_secure(void)
 	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
-		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
 	ret = smaf_set_secure(fd, 1);
 	if (ret) {
-		printf("%s smaf_set_secure() failed %d\n", __func__, ret);
+		printf("%s: smaf_set_secure() failed %d\n", __func__, ret);
 		goto end;
 	}
 
 	ret = smaf_get_secure(fd);
 	if (!ret) {
-		printf("%s smaf_get_secure() failed %d\n", __func__, ret);
+		printf("%s: smaf_get_secure() failed %d\n", __func__, ret);
 		goto end;
 	}
 
-	printf("%s successed\n", __func__);
+	printf("%s: successed\n", __func__);
 end:
 	close(fd);
 }
@@ -128,18 +175,61 @@ static void test_create_non_page_aligned(void)
 
 static void test_create_unnamed(void)
 {
-	int ret;
-	int fd;
+	test_create_named(NULL);
+}
+
+static void test_mmap(void)
+{
+	int ret, fd;
+	char *data;
 
 	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
-		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
+		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
 		return;
 	}
 
+	data = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (data == MAP_FAILED) {
+		printf("%s: mmap failed\n", __func__);
+		goto end;
+	}
+
+	munmap(data, LENGTH);
+	printf("%s: successed\n", __func__);
+end:
 	close(fd);
-	printf("%s successed\n", __func__);
+}
+
+static void test_mmap_secure(void)
+{
+	int ret, fd;
+	char *data;
+
+	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
+
+	if (ret || (fd == -1)) {
+		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
+		return;
+	}
+
+	ret = smaf_set_secure(fd, 1);
+	if (ret) {
+		printf("%s: smaf_set_secure() failed %d\n", __func__, ret);
+		goto end;
+	}
+
+	data = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (data == MAP_FAILED) {
+		printf("%s: mmap failed\n", __func__);
+		goto end;
+	}
+
+	munmap(data, LENGTH);
+	printf("%s: successed\n", __func__);
+end:
+	close(fd);
 }
 
 void main (void)
@@ -150,11 +240,16 @@ void main (void)
 	}
 
 	test_create_unnamed();
-	test_create_named();
+
+	test_iter_over_allocators();
+	test_invalid_allocator_index();
 	test_create_named_invalid();
 	test_create_non_page_aligned();
 	test_create_non_page_aligned_mmap();
 	test_secure();
+
+	test_mmap();
+	test_mmap_secure();
 
 	smaf_close();
 }

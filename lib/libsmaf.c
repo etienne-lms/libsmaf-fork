@@ -122,3 +122,49 @@ int smaf_get_secure(int fd)
 
 	return flag.secure;
 }
+
+int smaf_allocator_count()
+{
+	struct smaf_info info;
+	int ret;
+
+	if (smaf_fd == -1)
+		return -1;
+
+	memset(&info, 0, sizeof(info));
+
+	ret = ioctl(smaf_fd, SMAF_IOC_GET_INFO, &info);
+
+	if (ret)
+		return ret;
+
+	return info.count;
+}
+
+char *smaf_get_allocator_name(int index)
+{
+	struct smaf_info info;
+	char *name;
+	int ret;
+
+	if (smaf_fd == -1)
+		return NULL;
+
+	memset(&info, 0, sizeof(info));
+	info.index = index;
+
+	ret = ioctl(smaf_fd, SMAF_IOC_GET_INFO, &info);
+
+	if (ret)
+		return NULL;
+
+	if (!info.count)
+		return NULL;
+
+	name = (char*)malloc(ALLOCATOR_NAME_LENGTH);
+	strncpy(name, info.name, ALLOCATOR_NAME_LENGTH);
+	return name;
+}
+
+
+

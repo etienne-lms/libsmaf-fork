@@ -38,6 +38,18 @@ struct smaf_secure_flag {
 	int secure;
 };
 
+/**
+ * struct smaf_info - get registered allocator name per index
+ * @index:	allocator's index
+ * @count:	return number of registered allocators
+ * @name:	return allocator name
+ */
+struct smaf_info {
+	int index;
+	int count;
+	char name[ALLOCATOR_NAME_LENGTH];
+};
+
 #define SMAF_IOC_MAGIC	'S'
 
 #define SMAF_IOC_CREATE		 _IOWR(SMAF_IOC_MAGIC, 0, \
@@ -48,5 +60,7 @@ struct smaf_secure_flag {
 
 #define SMAF_IOC_SET_SECURE_FLAG _IOWR(SMAF_IOC_MAGIC, 2, \
 				       struct smaf_secure_flag)
+
+#define SMAF_IOC_GET_INFO	 _IOWR(SMAF_IOC_MAGIC, 3, struct smaf_info)
 
 #endif
