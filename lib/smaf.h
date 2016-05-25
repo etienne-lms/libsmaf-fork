@@ -12,42 +12,61 @@
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
-#define ALLOCATOR_NAME_LENGTH 64
+#define MAX_NAME_LENGTH 64
+
+#define SMAF_RDWR O_RDWR
+#define SMAF_CLOEXEC O_CLOEXEC
 
 /**
  * struct smaf_create_data - allocation parameters
- * @length:	size of the allocation
- * @flags:	flags passed to allocator
- * @name:	name of the allocator to be selected, could be NULL
+ * @version:	structure version (must be set to 0)
+ * @length:	size of the requested buffer
+ * @flags:	mode flags for the file like SMAF_RDWR or SMAF_CLOEXEC
  * @fd:		returned file descriptor
+ * @name:	name of the allocator to be selected
+ *		when NULL smaf will iterate over allocator to find
+ *		one matching with devices constraints.
  */
 struct smaf_create_data {
-	size_t length;
-	unsigned int flags;
-	char name[ALLOCATOR_NAME_LENGTH];
-	int fd;
+	__u64 version;
+	__u64 length;
+	__u32 flags;
+	__u32 reserved1;
+	__s32 fd;
+	__u32 reserved2;
+	__u8 name[MAX_NAME_LENGTH];
+	__u8 reserved3[32];
 };
 
 /**
  * struct smaf_secure_flag - set/get secure flag
+ * @version:	structure version (must be set to 0)
  * @fd:		file descriptor
  * @secure:	secure flag value (set or get)
  */
 struct smaf_secure_flag {
-	int fd;
-	int secure;
+	__u64 version;
+	__s32 fd;
+	__u32 reserved1;
+	__u32 secure;
+	__u8 reserved2[44];
 };
 
 /**
  * struct smaf_info - get registered allocator name per index
+ * @version:	structure version (must be set to 0)
  * @index:	allocator's index
  * @count:	return number of registered allocators
  * @name:	return allocator name
  */
 struct smaf_info {
-	int index;
-	int count;
-	char name[ALLOCATOR_NAME_LENGTH];
+	__u64 version;
+	__u32 index;
+	__u32 reserved1;
+	__u32 count;
+	__u32 reserved2;
+	__u8 name[MAX_NAME_LENGTH];
+	__u8 reserved3[40];
 };
 
 #define SMAF_IOC_MAGIC	'S'

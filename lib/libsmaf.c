@@ -77,8 +77,10 @@ int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int 
 
 	create.length = length;
 	create.flags = flags;
-	if (name)
+	if (name) {
 		strncpy(&create.name, name, sizeof(create.name));
+		create.name[MAX_NAME_LENGTH - 1] = 0;
+	}
 
 	ret = ioctl(smaf_fd, SMAF_IOC_CREATE, &create);
 	if (ret) {
@@ -161,8 +163,9 @@ char *smaf_get_allocator_name(int index)
 	if (!info.count)
 		return NULL;
 
-	name = (char*)malloc(ALLOCATOR_NAME_LENGTH);
-	strncpy(name, info.name, ALLOCATOR_NAME_LENGTH);
+	name = (char*)malloc(MAX_NAME_LENGTH);
+	strncpy(name, info.name, MAX_NAME_LENGTH);
+	name[MAX_NAME_LENGTH - 1] = 0;
 	return name;
 }
 

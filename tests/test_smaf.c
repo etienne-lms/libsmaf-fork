@@ -20,6 +20,7 @@
  */
 
 #include <../lib/libsmaf.h>
+#include <../lib/smaf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -31,7 +32,7 @@ static void test_create_named(char *name)
 	int ret;
 	int fd;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, name, &fd);
+	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, name, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
@@ -48,7 +49,7 @@ static void test_create_named_invalid(void)
 	int ret;
 	int fd;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, "deadbeef", &fd);
+	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, "deadbeef", &fd);
 
 	if (!ret) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
@@ -109,7 +110,7 @@ static void test_secure(void)
 	int ret;
 	int fd;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
+	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
@@ -139,7 +140,7 @@ static void test_create_non_page_aligned_mmap(void)
 	int fd;
 	void *data;
 
-	ret = smaf_create_buffer(LENGTH+1, O_CLOEXEC | O_RDWR, NULL, &fd);
+	ret = smaf_create_buffer(LENGTH+1, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
@@ -162,7 +163,7 @@ static void test_create_non_page_aligned(void)
 	int ret;
 	int fd;
 
-	ret = smaf_create_buffer(LENGTH+1, O_CLOEXEC | O_RDWR, NULL, &fd);
+	ret = smaf_create_buffer(LENGTH+1, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s smaf_create_buffer() failed %d\n", __func__, ret);
@@ -183,7 +184,7 @@ static void test_mmap(void)
 	int ret, fd;
 	char *data;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
+	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
@@ -207,7 +208,7 @@ static void test_mmap_secure(void)
 	int ret, fd;
 	char *data;
 
-	ret = smaf_create_buffer(LENGTH, O_CLOEXEC | O_RDWR, NULL, &fd);
+	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
