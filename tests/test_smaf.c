@@ -233,11 +233,11 @@ end:
 	close(fd);
 }
 
-void main (void)
+int main (void)
 {
 	if (smaf_open()) {
 		printf("Can't open /dev/smaf\n");
-		return;
+		return 0;
 	}
 
 	test_create_unnamed();
@@ -253,4 +253,5 @@ void main (void)
 	test_mmap_secure();
 
 	smaf_close();
+	return 0;
 }
