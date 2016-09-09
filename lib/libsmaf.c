@@ -78,7 +78,7 @@ int smaf_create_buffer(unsigned int length, unsigned int flags, char *name, int 
 	create.length = length;
 	create.flags = flags;
 	if (name) {
-		strncpy(&create.name, name, sizeof(create.name));
+		strncpy((char *)&create.name, name, sizeof(create.name));
 		create.name[MAX_NAME_LENGTH - 1] = 0;
 	}
 
