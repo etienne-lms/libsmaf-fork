@@ -23,7 +23,10 @@
 #include <../lib/smaf.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+
+#include "optee_invoke_sdp_ta.h"
 
 #define LENGTH 1024*16
 
@@ -188,13 +191,13 @@ static void test_mmap(void)
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
-		return;
+		exit(1);
 	}
 
 	data = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (data == MAP_FAILED) {
 		printf("%s: mmap failed\n", __func__);
-		goto end;
+		exit(1);
 	}
 
 	munmap(data, LENGTH);
@@ -212,32 +215,105 @@ static void test_mmap_secure(void)
 
 	if (ret || (fd == -1)) {
 		printf("%s: smaf_create_buffer() failed %d\n", __func__, ret);
-		return;
+		exit(1);
 	}
 
 	ret = smaf_set_secure(fd, 1);
 	if (ret) {
 		printf("%s: smaf_set_secure() failed %d\n", __func__, ret);
-		goto end;
+		exit(1);
 	}
 
 	data = mmap(NULL, LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (data == MAP_FAILED) {
-		printf("%s: mmap failed\n", __func__);
-		goto end;
+	if (data != MAP_FAILED) {
+		printf("%s: mmap succeed but shall fail !!!\n", __func__);
+		exit(1);
 	}
-
-	munmap(data, LENGTH);
 	printf("%s: successed\n", __func__);
 end:
 	close(fd);
 }
 
-void main (void)
+static int test_secure_data_path(void)
 {
+	struct tee_ctx ctx;
+	unsigned char *test_buf;
+	unsigned char *ref_buf;
+	size_t len;
+	int rc;
+	int fd;
+	struct sec_buf sbuf;
+
+	len = 16 * 1024;
+	test_buf = malloc(len);
+	ref_buf = malloc(len);
+	if (!test_buf || !ref_buf)
+		return -1;
+
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd < 0)
+		return -1;
+	rc = read(fd, ref_buf, len);
+	if (rc != len) {
+		printf("failed to read %d bytes from /dev/urandom\n", len);
+		return -1;
+	}
+	memcpy(test_buf, ref_buf, len);
+
+	memset(&sbuf, 0, sizeof(sbuf));
+	sbuf.size = len;
+
+	rc = smaf_create_buffer(len, SMAF_CLOEXEC | SMAF_RDWR, "smaf-optee", &sbuf.ref);
+	if (rc || sbuf.ref < 0) {
+		printf("smaf_create_buffer() failed %d, d\n", __func__, rc, sbuf.ref);
+		return -1;
+	}
+	rc = smaf_set_secure(sbuf.ref, 1);
+	if (rc) {
+		printf("%s: smaf_set_secure() failed %d\n", __func__, rc);
+		return -1;
+	}
+
+	if (create_tee_ctx(&ctx))
+		return -1;
+
+	rc = smaf_set_secure(sbuf.ref, 1);
+	if (rc) {
+		printf("%s: smaf_set_secure() failed %d\n", __func__, rc);
+		return -1;
+	}
+
+	if (inject_sdp_data(&ctx, test_buf, len, &sbuf))
+		return -1;
+
+	if (transform_sdp_data(&ctx, &sbuf))
+		return -1;
+
+	if (dump_sdp_data(&ctx, test_buf, len, &sbuf))
+		return -1;
+
+	while(len--) {
+		if (test_buf[len] != (unsigned char)(~ref_buf[len] + 1)) {
+			printf("Unexpected content found\n");
+			return -1;
+		}
+	}
+
+	close(sbuf.ref);
+	finalize_tee_ctx(&ctx);
+	printf("%s: successed\n", __func__);
+
+	return 0;
+}
+
+
+int main (void)
+{
+	int err = 0;
+
 	if (smaf_open()) {
 		printf("Can't open /dev/smaf\n");
-		return;
+		return -1;
 	}
 
 	test_create_unnamed();
@@ -252,5 +328,12 @@ void main (void)
 	test_mmap();
 	test_mmap_secure();
 
+	if (test_secure_data_path()) {
+		printf("error found\n");
+		err++;
+	}
+
 	smaf_close();
+
+	return err ? -1 : 0;
 }
