@@ -27,6 +27,7 @@
 
 #include <err.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <tee_client_api.h>
 
@@ -51,10 +52,6 @@ int create_tee_ctx(struct tee_ctx *ctx)
 	if (teerc != TEEC_SUCCESS)
 		return -1;
 
-	/*
-	 * Open a session to the "hello world" TA, the TA will print "hello
-	 * world!" in the log when the session is created.
-	 */
 	teerc = TEEC_OpenSession(&ctx->ctx, &ctx->sess, &uuid,
 			       TEEC_LOGIN_PUBLIC, NULL, NULL, &err_origin);
 	if (teerc != TEEC_SUCCESS)
@@ -64,27 +61,59 @@ int create_tee_ctx(struct tee_ctx *ctx)
 	return (teerc == TEEC_SUCCESS) ? 0 : -1;
 }
 
-int inject_sdp_data(struct tee_ctx *ctx, void *in, size_t sz_in, struct sec_buf *sbuf)
+int tee_register_buffer(struct tee_ctx *ctx, void **shm_ref, int fd)
+{
+	TEEC_Result teerc;
+	TEEC_SharedMemory *shm;
+
+	shm = malloc(sizeof(*shm));
+	if (!shm)
+		return 1;
+
+	teerc = TEEC_RegisterMemoryFileDescriptor(&ctx->ctx, shm, fd);
+	if (teerc != TEEC_SUCCESS) {
+		printf("Error in %s: TEEC_RegisterMemoryFileDescriptor() failed %x\n",
+			__func__, teerc);
+		return 1;
+	}
+
+	*shm_ref = shm;
+	return 0;
+}
+
+int tee_deregister_buffer(struct tee_ctx *ctx, void *shm_ref)
+{
+	TEEC_Result teerc;
+
+	teerc = TEEC_DeregisterSharedMemory(&ctx->ctx, (TEEC_SharedMemory *)shm_ref);
+	if (teerc != TEEC_SUCCESS) {
+		printf("Error in %s: TEEC_DeregisterSharedMemory() failed %x\n",
+			__func__, teerc);
+		return 1;
+	}
+
+	free(shm_ref);
+	return 0;
+}
+
+int inject_sdp_data(struct tee_ctx *ctx,
+		    void *in, size_t offset, size_t len, void *shm_ref)
 {
 	TEEC_Result teerc;
 	TEEC_Operation op;
 	uint32_t err_origin;
-	TEEC_SharedMemory shm;
+	TEEC_SharedMemory *shm = (TEEC_SharedMemory *)shm_ref;
 
 	memset(&op, 0, sizeof(op));
-	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_SECURE,TEEC_MEMREF_TEMP_INPUT,
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_TEMP_INPUT,
+					 TEEC_MEMREF_SECURE,
 					 TEEC_NONE, TEEC_NONE);
 
-	op.params[1].tmpref.buffer = in;
-	op.params[1].tmpref.size = sz_in;
-
-	memset(&shm, 0, sizeof(shm));
-	shm.id = sbuf->ref;
-	shm.flags = TEEC_MEM_SECURE;
-	shm.size = sbuf->size;
-	op.params[0].memref.parent = &shm;
-	op.params[0].memref.size = sbuf->size;
-	op.params[0].memref.offset = sbuf->offset;
+	op.params[0].tmpref.buffer = in;
+	op.params[0].tmpref.size = len;
+	op.params[1].memref.parent = shm;
+	op.params[1].memref.size = len;
+	op.params[1].memref.offset = offset;
 
 	teerc = TEEC_InvokeCommand(&ctx->sess, 0, &op, &err_origin);
 	if (teerc != TEEC_SUCCESS)
@@ -94,24 +123,20 @@ int inject_sdp_data(struct tee_ctx *ctx, void *in, size_t sz_in, struct sec_buf 
 	return (teerc == TEEC_SUCCESS) ? 0 : -1;
 }
 
-int transform_sdp_data(struct tee_ctx *ctx, struct sec_buf *sbuf)
+int transform_sdp_data(struct tee_ctx *ctx,
+			size_t offset, size_t len, void *shm_ref)
 {
 	TEEC_Result teerc;
 	TEEC_Operation op;
 	uint32_t err_origin;
-	TEEC_SharedMemory shm;
+	TEEC_SharedMemory *shm = (TEEC_SharedMemory *)shm_ref;
 
 	memset(&op, 0, sizeof(op));
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_SECURE,
 					 TEEC_NONE, TEEC_NONE, TEEC_NONE);
-
-	memset(&shm, 0, sizeof(shm));
-	shm.id = sbuf->ref;
-	shm.flags = TEEC_MEM_SECURE;
-	shm.size = sbuf->size;
-	op.params[0].memref.parent = &shm;
-	op.params[0].memref.size = sbuf->size;
-	op.params[0].memref.offset = sbuf->offset;
+	op.params[0].memref.parent = shm;
+	op.params[0].memref.size = len;
+	op.params[0].memref.offset = offset;
 
 	teerc = TEEC_InvokeCommand(&ctx->sess, 0, &op, &err_origin);
 	if (teerc != TEEC_SUCCESS)
@@ -121,28 +146,23 @@ int transform_sdp_data(struct tee_ctx *ctx, struct sec_buf *sbuf)
 	return (teerc == TEEC_SUCCESS) ? 0 : -1;
 }
 
-int dump_sdp_data(struct tee_ctx *ctx, void *out, size_t sz_out, struct sec_buf *sbuf)
+int dump_sdp_data(struct tee_ctx *ctx,
+		  void *out, size_t offset, size_t len, void *shm_ref)
 {
 	TEEC_Result teerc;
 	TEEC_Operation op;
 	uint32_t err_origin;
-	TEEC_SharedMemory shm;
+	TEEC_SharedMemory *shm = (TEEC_SharedMemory *)shm_ref;
 
 	memset(&op, 0, sizeof(op));
 	op.paramTypes = TEEC_PARAM_TYPES(TEEC_MEMREF_SECURE,
 					 TEEC_MEMREF_TEMP_OUTPUT,
 					 TEEC_NONE, TEEC_NONE);
-
-	memset(&shm, 0, sizeof(shm));
-	shm.id = sbuf->ref;
-	shm.flags = TEEC_MEM_SECURE;
-	shm.size = sbuf->size;
-	op.params[0].memref.parent = &shm;
-	op.params[0].memref.size = sbuf->size;
-	op.params[0].memref.offset = sbuf->offset;
-
+	op.params[0].memref.parent = shm;
+	op.params[0].memref.size = len;
+	op.params[0].memref.offset = offset;
 	op.params[1].tmpref.buffer = out;
-	op.params[1].tmpref.size = sz_out;
+	op.params[1].tmpref.size = len;
 
 	teerc = TEEC_InvokeCommand(&ctx->sess, 0, &op, &err_origin);
 	if (teerc != TEEC_SUCCESS)

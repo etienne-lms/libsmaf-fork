@@ -36,7 +36,8 @@ struct tee_ctx {
 };
 
 struct sec_buf {
-	int ref;
+	int fd;
+	void *teeref;
 	size_t offset;
 	size_t size;
 };
@@ -45,10 +46,14 @@ void finalize_tee_ctx(struct tee_ctx *ctx);
 
 int create_tee_ctx(struct tee_ctx *ctx);
 
-int inject_sdp_data(struct tee_ctx *ctx, void *in, size_t sz_in, struct sec_buf *sbuf);
+int tee_deregister_buffer(struct tee_ctx *ctx, void *shm_ref);
 
-int transform_sdp_data(struct tee_ctx *ctx, struct sec_buf *sbuf);
+int tee_deregister_buffer(struct tee_ctx *ctx, void *shm_ref);
 
-int dump_sdp_data(struct tee_ctx *ctx, void *out, size_t sz_out, struct sec_buf *sbuf);
+int inject_sdp_data(struct tee_ctx *ctx, void *in, size_t offset, size_t sz_in, void *sbuf);
+
+int transform_sdp_data(struct tee_ctx *ctx, size_t offset, size_t len, void *sbuf);
+
+int dump_sdp_data(struct tee_ctx *ctx, void *out, size_t offset, size_t sz_out, void *sbuf);
 
 #endif /* INVOKE_SDP_TA_H */

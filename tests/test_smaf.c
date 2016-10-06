@@ -168,6 +168,7 @@ static int test_create_non_page_aligned_mmap(void)
 static int test_create_non_page_aligned(void)
 {
 	int fd;
+	int ret;
 
 	ret = smaf_create_buffer(LENGTH+1, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 	if (ret || fd < 0) {
@@ -187,8 +188,9 @@ static int test_create_unnamed(void)
 
 static int test_mmap(void)
 {
-	int fd;
 	char *data;
+	int fd;
+	int ret;
 
 	ret = smaf_create_buffer(LENGTH, SMAF_CLOEXEC | SMAF_RDWR, NULL, &fd);
 	if (ret || fd < 0) {
@@ -236,20 +238,21 @@ static int test_mmap_secure(void)
 	printf("%s: succeeded\n", __func__);
 	return 0;
 }
-	close(fd);
-}
 
 static int test_secure_data_path(void)
 {
 	struct tee_ctx ctx;
 	unsigned char *test_buf;
 	unsigned char *ref_buf;
+	int shm_smaf_fd;
+	void *shm_tee_ref;
+	size_t offset;
 	size_t len;
 	int rc;
 	int fd;
-	struct sec_buf sbuf;
 
 	len = 16 * 1024;
+	offset = 0;
 	test_buf = malloc(len);
 	ref_buf = malloc(len);
 	if (!test_buf || !ref_buf)
@@ -265,15 +268,12 @@ static int test_secure_data_path(void)
 	}
 	memcpy(test_buf, ref_buf, len);
 
-	memset(&sbuf, 0, sizeof(sbuf));
-	sbuf.size = len;
-
-	rc = smaf_create_buffer(len, SMAF_CLOEXEC | SMAF_RDWR, "smaf-optee", &sbuf.ref);
-	if (rc || sbuf.ref < 0) {
-		printf("smaf_create_buffer() failed %d, d\n", __func__, rc, sbuf.ref);
+	rc = smaf_create_buffer(len, SMAF_CLOEXEC | SMAF_RDWR, "smaf-optee", &shm_smaf_fd);
+	if (rc || shm_smaf_fd < 0) {
+		printf("smaf_create_buffer() failed %d, d\n", __func__, rc, shm_smaf_fd);
 		return 1;
 	}
-	rc = smaf_set_secure(sbuf.ref, 1);
+	rc = smaf_set_secure(shm_smaf_fd, 1);
 	if (rc) {
 		printf("%s: smaf_set_secure() failed %d\n", __func__, rc);
 		return 1;
@@ -282,13 +282,16 @@ static int test_secure_data_path(void)
 	if (create_tee_ctx(&ctx))
 		return 1;
 
-	if (inject_sdp_data(&ctx, test_buf, len, &sbuf))
+	if (tee_register_buffer(&ctx, &shm_tee_ref, shm_smaf_fd))
 		return 1;
 
-	if (transform_sdp_data(&ctx, &sbuf))
+	if (inject_sdp_data(&ctx, test_buf, offset, len, shm_tee_ref))
 		return 1;
 
-	if (dump_sdp_data(&ctx, test_buf, len, &sbuf))
+	if (transform_sdp_data(&ctx, offset, len, shm_tee_ref))
+		return 1;
+
+	if (dump_sdp_data(&ctx, test_buf, offset, len, shm_tee_ref))
 		return 1;
 
 	while(len--) {
@@ -298,7 +301,9 @@ static int test_secure_data_path(void)
 		}
 	}
 
-	close(sbuf.ref);
+	if (tee_deregister_buffer(&ctx, shm_tee_ref))
+		return 1;
+	close(shm_smaf_fd);
 	finalize_tee_ctx(&ctx);
 	printf("%s: successed\n", __func__);
 
@@ -314,7 +319,7 @@ int main (void)
 		printf("Can't open /dev/smaf\n");
 		return -1;
 	}
-
+#if 0
 	err += test_create_unnamed();
 
 	err += test_iter_over_allocators();
@@ -326,7 +331,7 @@ int main (void)
 
 	err += test_mmap();
 	err += test_mmap_secure();
-
+#endif
 	err += test_secure_data_path();
 
 	smaf_close();
