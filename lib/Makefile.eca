@@ -53,6 +53,6 @@ $(O)/%.o: $(CURDIR)/%.c
 .PHONY: clean
 clean:
 	@echo '  CLEAN $(O)'
-	$(q)rm -f $(O)/$(library)
+	$(q)rm -f $(O)/$(LIB_NAME)
 	$(q)$(foreach obj,$(objs), rm -f $(obj))
 
